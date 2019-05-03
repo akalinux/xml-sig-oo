@@ -16,3 +16,8 @@ public/site.js
 .settings/*
 sessions/*
 .includepath
+blib/
+rpm
+pm_to_blib
+META.yml
+META.json
