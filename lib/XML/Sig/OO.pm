@@ -1,6 +1,6 @@
 package XML::Sig::OO;
 
-our $VERSION="0.003";
+our $VERSION="0.004";
 
 use Modern::Perl;
 use Moo;
@@ -1060,7 +1060,12 @@ sub verify_x509_sig {
 
   if(defined($self->cacert)) {
     my $ca=Crypt::OpenSSL::VerifyX509->new($self->cacert);
-    return new_false Data::Result("Could not verify the x509 cert against ".$self->cacert) unless $ca->verify($cert);
+    my $result;
+    eval {$result=new_false Data::Result("Could not verify the x509 cert against ".$self->cacert) unless $ca->verify($cert)};
+    if($@) {
+      return new_false Data::Result("Error using cert file: ".$self->cacert."error was: $@");
+    }
+    return $result unless $result;
   }
 
   my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($cert->pubkey);
