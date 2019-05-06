@@ -1065,7 +1065,7 @@ sub verify_x509_sig {
     if($@) {
       return new_false Data::Result("Error using cert file: ".$self->cacert."error was: $@");
     }
-    return $result unless $result;
+    return $result if defined($result);
   }
 
   my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($cert->pubkey);
