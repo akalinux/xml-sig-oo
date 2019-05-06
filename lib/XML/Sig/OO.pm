@@ -1,6 +1,6 @@
 package XML::Sig::OO;
 
-our $VERSION="0.004";
+our $VERSION="0.005";
 
 use Modern::Perl;
 use Moo;
@@ -18,7 +18,6 @@ use Ref::Util qw( is_plain_hashref);
 use Data::Result;
 use Carp qw(croak);
 use Scalar::Util qw(looks_like_number);
-use Data::Dumper;
 use namespace::clean;
 
 =head1 NAME
@@ -1617,7 +1616,6 @@ Creates the xml from the Certificate Object.
 
 sub create_x509_xml {
   my ($self,$cert)=@_;
-  print Dumper($cert);
   my $cert_text = $cert->as_string;
   return $self->build_x509_xml($cert_text);
 }

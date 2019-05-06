@@ -27,7 +27,7 @@ WriteMakefile(
         Digest::SHA 5.96
         Ref::Util 0.204
         Data::Result 1.0003
-        Carp 1.42
+        Carp 1.38
         Scalar::Util 0
         namespace::clean 0.27
         Getopt::Long 2.49
