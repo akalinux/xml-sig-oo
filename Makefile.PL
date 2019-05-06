@@ -30,7 +30,7 @@ WriteMakefile(
         Carp 1.42
         Scalar::Util 0
         namespace::clean 0.27
-        Gopt::Long 2.49
+        Getopt::Long 2.49
       )
     },
     ABSTRACT_FROM  => 'lib/XML/Sig/OO.pm', # retrieve abstract from module

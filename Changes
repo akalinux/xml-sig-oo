@@ -4,3 +4,5 @@
 0.002
   - Added command line interface xmlsig
   - added CONTRIBUTING.md
+0.003
+  - Fixed typo in make file required pkg list
