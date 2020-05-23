@@ -19,6 +19,8 @@ use Data::Result;
 use Carp qw(croak);
 use Scalar::Util qw(looks_like_number);
 use namespace::clean;
+use constant TRANSFORM_EXC_C14N          => 'http://www.w3.org/2001/10/xml-exc-c14n#';
+use constant TRANSFORM_EXC_C14N_COMMENTS => 'http://www.w3.org/2001/10/xml-exc-c14n#WithComments';
 
 =head1 NAME
 
@@ -313,8 +315,16 @@ Callbacks are usied in the following context
 sub _build_canon_coderef {
   my ($method,$comment)=@_;
   return sub {
-    my ($self,$x,$node,$nth,$inclusivePrefixes)=@_;
-    return $node->$method($comment, undef, $inclusivePrefixes);
+    my ($self,$x,$node,$nth,$ec14n_inclusive_prefixes)=@_;
+
+    if ($method eq "toStringEC14N")
+    {
+      return $node->$method($comment, undef, $ec14n_inclusive_prefixes);
+    }
+    else
+    {
+      return $node->$method($comment);
+    }
   };
 }
 
@@ -917,35 +927,28 @@ Please note, the xpath generate is a concatination of $self->context($self->xpat
 sub get_transforms {
   my ($self,$x,$nth)=@_;
 
-  #get <ds:Transform> nodes
   my $xpath=$self->context($self->xpath_Transforms,$nth).$self->xpath_Transform;
-  print "Xpath: $xpath\n";
 
   my $transforms=$x->findnodes($xpath);
-  print "Transforms: $transforms\n";
   my @data=();
+  my @prefixes = ();
 
+  my $pfx='';
   foreach my $transform ($transforms->get_nodelist) {
-    print "Transform: $transform\n";
     my $algo = $x->findvalue($self->xpath_TransformAlgorithm, $transform);
-    print "Algo: $algo\n";
 
-    my $rawprefixes = $x->findvalue($self->xpath_TransformInclusiveNamespacesPrefixList, $transform);
-    my @prefixes = ();
+    if ($algo eq TRANSFORM_EXC_C14N or $algo eq TRANSFORM_EXC_C14N_COMMENTS)
+    {
+      my $rawprefixes = $x->findvalue($self->xpath_TransformInclusiveNamespacesPrefixList, $transform);
 
-    if ($rawprefixes ne "")
-    {
-      print "We have a prefix\n";
-      @prefixes= split(' ', $rawprefixes);
-    }
-    else
-    {
-      print "No prefix!\n";
+      if ($rawprefixes ne "")
+      {
+        @prefixes = split(' ', $rawprefixes);
+      }
+   
+      $pfx = $rawprefixes ? 'prefixes => \@prefixes' : '';
     }
 
-    my $pfx = $rawprefixes ? 'prefixes => \@prefixes' : '';
-
-    print "Prefixes: @prefixes\n";
     push @data, { algorithm => $algo, eval $pfx};
   }
 
@@ -1213,8 +1216,6 @@ sub do_transforms {
   foreach my $transform (@todo) {
     my $algorithm = $transform->{algorithm};
     my @prefixes = $transform->{prefixes};
-    #print "Extracted algo: $algorithm | Prefixes: @prefixes\n";
-
     my $result=$self->transform($x,$target,$algorithm,$nth,@prefixes);
     return $result unless $result;
     $xml=$result->get_data;
@@ -1345,16 +1346,16 @@ sub clean_x509 {
   return $cert;
 }
 
-=head2 my $result=$self->transform($xpath_object,$node,$transformType,$nth,$inclusivePrefixes)
+=head2 my $result=$self->transform($xpath_object,$node,$transformType,$nth,$ec14n_inclusive_prefixes)
 
 Given the $node XML::LibXML::Element and $transformType, returns a Data::Result object.  When true the call to $result->get_data will return the xml, when false it will contain a string that shows why it failed.
 
 =cut 
 
 sub transform {
-  my ($self,$x,$node,$type,$nth,$inclusivePrefixes)=@_;
+  my ($self,$x,$node,$type,$nth,$ec14n_inclusive_prefixes)=@_;
   return new_false Data::Result("tansform of [$type] is not supported") unless exists $self->mutate_cbs->{$type};
-  return new_true Data::Result($self->mutate_cbs->{$type}->($self,$x,$node,$nth,$inclusivePrefixes));
+  return new_true Data::Result($self->mutate_cbs->{$type}->($self,$x,$node,$nth,$ec14n_inclusive_prefixes));
 }
 
 =head2 my $array_ref=$self->transforms
