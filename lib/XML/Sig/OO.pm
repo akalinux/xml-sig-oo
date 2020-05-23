@@ -247,7 +247,7 @@ has digest_cbs=>(
 sub _get_digest {
   my ($self,$algo, $content) = @_;
   my $digest = Digest::SHA->can("${algo}_base64")->($content);
-  while (length($digest) % 4) { $digest .= '=' }
+  while (length($digest) % 4) { $digest .= '='  }
   return $digest;
 }
 
@@ -313,8 +313,8 @@ Callbacks are usied in the following context
 sub _build_canon_coderef {
   my ($method,$comment)=@_;
   return sub {
-    my ($self,$x,$node)=@_;
-    return $node->$method($comment);
+    my ($self,$x,$node,$nth,$inclusivePrefixes)=@_;
+    return $node->$method($comment, undef, $inclusivePrefixes);
   };
 }
 
@@ -430,16 +430,40 @@ has xpath_Transforms=>(
   default=>'//ds:Transforms',
 );
 
-=item * xpath_Transform=>'/ds:Transform/@Algorithm'
+=item * xpath_Transform=>'/ds:Transform'
 
-Xpath used to find the transform Algorithm
+Xpath used to find the transform
 
 =cut
 
 has xpath_Transform=>(
   isa=>Str,
   is=>'ro',
-  default=>'/ds:Transform/@Algorithm'
+  default=>'/ds:Transform'
+);
+
+=item * xpath_TransformInclusiveNamespacesPrefixList=>'ec:InclusiveNamespaces/@PrefixList'
+
+Xpath used to find the transform Algorithm
+
+=cut
+
+has xpath_TransformInclusiveNamespacesPrefixList=>(
+  isa=>Str,
+  is=>'ro',
+  default=>'ec:InclusiveNamespaces/@PrefixList'
+);
+
+=item * xpath_TransformAlgorithm=>'@Algorithm'
+
+Xpath used to find the transform Algorithm
+
+=cut
+
+has xpath_TransformAlgorithm=>(
+  isa=>Str,
+  is=>'ro',
+  default=>'@Algorithm'
 );
 
 =item * xpath_DigestValue=>'//ds:DigestValue'
@@ -888,18 +912,45 @@ Please note, the xpath generate is a concatination of $self->context($self->xpat
 
 =cut
 
+
+
 sub get_transforms {
   my ($self,$x,$nth)=@_;
 
+  #get <ds:Transform> nodes
   my $xpath=$self->context($self->xpath_Transforms,$nth).$self->xpath_Transform;
-  my $transforms=$x->find($xpath);
-  my $data=[];
-  foreach my $att ($transforms->get_nodelist) {
-    push @$data,$att->value;
+  print "Xpath: $xpath\n";
+
+  my $transforms=$x->findnodes($xpath);
+  print "Transforms: $transforms\n";
+  my @data=();
+
+  foreach my $transform ($transforms->get_nodelist) {
+    print "Transform: $transform\n";
+    my $algo = $x->findvalue($self->xpath_TransformAlgorithm, $transform);
+    print "Algo: $algo\n";
+
+    my $rawprefixes = $x->findvalue($self->xpath_TransformInclusiveNamespacesPrefixList, $transform);
+    my @prefixes = ();
+
+    if ($rawprefixes ne "")
+    {
+      print "We have a prefix\n";
+      @prefixes= split(' ', $rawprefixes);
+    }
+    else
+    {
+      print "No prefix!\n";
+    }
+
+    my $pfx = $rawprefixes ? 'prefixes => \@prefixes' : '';
+
+    print "Prefixes: @prefixes\n";
+    push @data, { algorithm => $algo, eval $pfx};
   }
 
-  return new_false Data::Result("Failed to find transforms in xpath: $xpath") unless $#{$data}>-1;
-  return new_true Data::Result($data);
+  return new_false Data::Result("Failed to find transforms in xpath: $xpath") unless @data>-1;
+  return new_true Data::Result(\@data);
 }
 
 =head2 my $result=$self->get_digest_node($xpath_object)
@@ -1157,10 +1208,14 @@ sub do_transforms {
   my ($self,$x,$target,$nth)=@_;
   my $result=$self->get_transforms($x,$nth);
   return $result unless $result;
-  my $todo=$result->get_data;
+  my @todo=@{$result->get_data};
   my $xml;
-  foreach my $transform (@{$todo}) {
-    my $result=$self->transform($x,$target,$transform,$nth);
+  foreach my $transform (@todo) {
+    my $algorithm = $transform->{algorithm};
+    my @prefixes = $transform->{prefixes};
+    #print "Extracted algo: $algorithm | Prefixes: @prefixes\n";
+
+    my $result=$self->transform($x,$target,$algorithm,$nth,@prefixes);
     return $result unless $result;
     $xml=$result->get_data;
   }
@@ -1180,7 +1235,7 @@ sub do_canon {
   my $todo=$result->get_data;
   my $xml;
   foreach my $transform (@{$todo}) {
-    my $result=$self->transform($x,$target,$transform,$nth);
+    my $result=$self->transform($x,$target,$transform,$nth,undef);
     return $result unless $result;
     $xml=$result->get_data;
   }
@@ -1290,17 +1345,16 @@ sub clean_x509 {
   return $cert;
 }
 
-=head2 my $result=$self->transform($xpath_object,$node,$transformType,$nth)
+=head2 my $result=$self->transform($xpath_object,$node,$transformType,$nth,$inclusivePrefixes)
 
 Given the $node XML::LibXML::Element and $transformType, returns a Data::Result object.  When true the call to $result->get_data will return the xml, when false it will contain a string that shows why it failed.
 
 =cut 
 
 sub transform {
-  my ($self,$x,$node,$type,$nth)=@_;
-  
+  my ($self,$x,$node,$type,$nth,$inclusivePrefixes)=@_;
   return new_false Data::Result("tansform of [$type] is not supported") unless exists $self->mutate_cbs->{$type};
-  return new_true Data::Result($self->mutate_cbs->{$type}->($self,$x,$node,$nth));
+  return new_true Data::Result($self->mutate_cbs->{$type}->($self,$x,$node,$nth,$inclusivePrefixes));
 }
 
 =head2 my $array_ref=$self->transforms
@@ -1564,7 +1618,7 @@ sub sign_chunk {
   return $result unless $result;
   my $id=$result->get_data;
 
-  my $digest_canon=$self->mutate_cbs->{$self->canon_method}->($self,$x,$node_to_sign,$nth);
+  my $digest_canon=$self->mutate_cbs->{$self->canon_method}->($self,$x,$node_to_sign,$nth,undef);
   my $digest=$self->digest_cbs->{$self->digest_method}->($self,$digest_canon);
 
   my $digest_xml    = $self->create_digest_xml( $id,$digest );
@@ -1580,7 +1634,7 @@ sub sign_chunk {
 
   my $canon;
   foreach my $method (@{$self->transforms}) {
-    $result=$self->transform($x,$signed_info,$method,$nth);
+    $result=$self->transform($x,$signed_info,$method,$nth,undef);
     return $result unless $result;
     $canon=$result->get_data;
   }
