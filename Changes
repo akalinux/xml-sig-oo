@@ -14,3 +14,5 @@
 0.006
   - Patches contributed by Ryan Newington
   - Adds support for EC14N transform with InclusivePrefixes
+0.007
+  - removed the need for the string eval, and localized list scoping for eachnode context in $self->get_transforms

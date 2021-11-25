@@ -1,6 +1,6 @@
 package XML::Sig::OO;
 
-our $VERSION="0.006";
+our $VERSION="0.007";
 
 use Modern::Perl;
 use Moo;
@@ -922,38 +922,33 @@ Please note, the xpath generate is a concatination of $self->context($self->xpat
 
 =cut
 
-
-
 sub get_transforms {
   my ($self,$x,$nth)=@_;
 
   my $xpath=$self->context($self->xpath_Transforms,$nth).$self->xpath_Transform;
 
   my $transforms=$x->findnodes($xpath);
-  my @data=();
-  my @prefixes = ();
+  my $data=[];
 
-  my $pfx='';
   foreach my $transform ($transforms->get_nodelist) {
     my $algo = $x->findvalue($self->xpath_TransformAlgorithm, $transform);
 
-    if ($algo eq TRANSFORM_EXC_C14N or $algo eq TRANSFORM_EXC_C14N_COMMENTS)
-    {
+    my $prefixes = [];
+    my $pfx=[];
+    if ($algo eq TRANSFORM_EXC_C14N or $algo eq TRANSFORM_EXC_C14N_COMMENTS) {
       my $rawprefixes = $x->findvalue($self->xpath_TransformInclusiveNamespacesPrefixList, $transform);
 
-      if ($rawprefixes ne "")
-      {
-        @prefixes = split(' ', $rawprefixes);
+      if ($rawprefixes ne "") {
+        @$prefixes = split(' ', $rawprefixes);
       }
-   
-      $pfx = $rawprefixes ? 'prefixes => \@prefixes' : '';
+      $pfx = $rawprefixes ? [prefixes => $prefixes] : [ ] ;
     }
 
-    push @data, { algorithm => $algo, eval $pfx};
+    push @$data, { algorithm => $algo,  @$pfx };
   }
 
-  return new_false Data::Result("Failed to find transforms in xpath: $xpath") unless @data>-1;
-  return new_true Data::Result(\@data);
+  return new_false Data::Result("Failed to find transforms in xpath: $xpath") unless $#{$data}>-1;
+  return new_true Data::Result($data);
 }
 
 =head2 my $result=$self->get_digest_node($xpath_object)
