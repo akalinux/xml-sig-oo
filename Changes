@@ -18,3 +18,5 @@
   - removed the need for the string eval, and localized list scoping for each node context in $self->get_transforms
 0.008
   - Cleaned up Changes file
+0.009
+  - Added boolean flag to skip cacert checking
