@@ -1,6 +1,6 @@
 package XML::Sig::OO;
 
-our $VERSION="0.009";
+our $VERSION="0.010";
 
 BEGIN {
 use Crypt::OpenSSL::VerifyX509;
@@ -1526,7 +1526,7 @@ sub load_rsa_string {
   my ($self,$str)=@_;
   my $rsaKey = Crypt::OpenSSL::RSA->new_private_key( $str );
   return new_false Data::Result("Failed to parse rsa key") unless $rsaKey;
-  $rsaKey->use_pkcs1_padding();
+  #$rsaKey->use_pkcs1_padding();
   return new_true Data::Result({cert=>$rsaKey,type=>'rsa'});
 }
 
